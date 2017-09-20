@@ -21,81 +21,82 @@ FASTLED_USING_NAMESPACE;
 CRGB leds[NUM_LEDS];
 
  // Pins
- #define pump D1
- #define dout A1
- #define clk A0
+ #define pumpControl D1
+ #define HX711_DOUT D7 
+ #define HX711_CLK D6 
+ #define dispenseBtn A2
+ #define manualDispenseSwitch D3
+ #define autoDispenseSwitch D2
 
  // Output device parameters
  #define dispenseTimeForOneShot 800
-
-// setup() runs once, when the device is first turned on.
-//void setup() {
-//  // Put initialization like pinMode and begin function here.
-//  pinMode(pump, OUTPUT);
-//  delay(1000);
-//
-//}
 
 HX711ADC *scale = NULL;
 
 int calibration_factor = 14000; //-7050 worked for my 440lb max scale setup
 
 void setup() {
-  delay(3000); // sanity delay
-  FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( CRGB::Seashell );
-  FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setTemperature( CRGB::Seashell );
-  FastLED.setBrightness( BRIGHTNESS );
+  // Put initialization like pinMode and begin function here.
+  pinMode(pumpControl, OUTPUT);
 
-  Serial.begin(9600);
-  Serial.println("HX711 calibration sketch");
-  Serial.println("Remove all weight from scale");
-  Serial.println("After readings begin, place known weight on scale");
-  Serial.println("Press + or a to increase calibration factor");
-  Serial.println("Press - or z to decrease calibration factor");
-
-  scale = new HX711ADC(7, 6);
-  scale->set_scale(calibration_factor);
-
-  scale->tare();	//Reset the scale to 0
-
-
-  long zero_factor = scale->read_average(); //Get a baseline reading
-  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
-  Serial.println(zero_factor);
+  delay(1000);
 }
 
-void loop() {
+//void setup() {
+//  delay(3000); // sanity delay
+//  FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( CRGB::Seashell );
+//  FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setTemperature( CRGB::Seashell );
+//  FastLED.setBrightness( BRIGHTNESS );
+//
+//  Serial.begin(9600);
+//  Serial.println("HX711 calibration sketch");
+//  Serial.println("Remove all weight from scale");
+//  Serial.println("After readings begin, place known weight on scale");
+//  Serial.println("Press + or a to increase calibration factor");
+//  Serial.println("Press - or z to decrease calibration factor");
+//
+//  scale = new HX711ADC(HX711_DOUT, HX711_CLK);
+//  scale->set_scale(calibration_factor);
+//
+//  scale->tare();	//Reset the scale to 0
+//
+//  long zero_factor = scale->read_average(); //Get a baseline reading
+//  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
+//  Serial.println(zero_factor);
+//}
 
-  //scale->set_scale(calibration_factor); //Adjust to this calibration factor
-
-  Serial.print("Reading: ");
-  Serial.print(scale->get_units(), 1);
-  Serial.print(" lbs"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
-  Serial.print(" calibration_factor: ");
-  Serial.print(calibration_factor);
-  Serial.println();
-
-  if(Serial.available())
-  {
-    char temp = Serial.read();
-    if(temp == '+' || temp == 'a')
-      calibration_factor += 10;
-    else if(temp == '-' || temp == 'z')
-      calibration_factor -= 10;
-  }
-
-  delay(200);
-
-  allWhite();
-  // Add entropy to random number generator; we use a lot of it.
-  //random16_add_entropy( random(256));
-
-  //Fire2012(); // run simulation frame
-
-  FastLED.show(); // display this frame
-  FastLED.delay(1000 / FRAMES_PER_SECOND);
-}
-
+//void loop() {
+//
+//  //scale->set_scale(calibration_factor); //Adjust to this calibration factor
+//
+//  Serial.print("Reading: ");
+//  Serial.print(scale->get_units(), 1);
+//  Serial.print(" lbs"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+//  Serial.print(" calibration_factor: ");
+//  Serial.print(calibration_factor);
+//  Serial.println();
+//
+//  if(Serial.available())
+//  {
+//    char temp = Serial.read();
+//    if(temp == '+' || temp == 'a')
+//      calibration_factor += 10;
+//    else if(temp == '-' || temp == 'z')
+//      calibration_factor -= 10;
+//  }
+//
+//  delay(200);
+//
+//  allWhite();
+//  // Add entropy to random number generator; we use a lot of it.
+//  //random16_add_entropy( random(256));
+//
+//  //Fire2012(); // run simulation frame
+//
+//  FastLED.show(); // display this frame
+//  FastLED.delay(1000 / FRAMES_PER_SECOND);
+//}
+//
 void allWhite() {
   for (int i = 0; i < NUM_LEDS; i++) {
     leds[i] = CRGB::Seashell;
@@ -109,9 +110,9 @@ void dispenseLiquid() {
   //  Calculations: 194 / 255 = 76%
   //                .76 * 3.3 = 2.5
   //  50% duty cycle is achieved with a 2.5v mosfet signal output.
-  analogWrite(pump, 194);
+  analogWrite(pumpControl, 194);
   delay(800);
-  analogWrite(pump, 0);
+  analogWrite(pumpControl, 0);
 }
 
 // Fire2012 by Mark Kriegsman, July 2012

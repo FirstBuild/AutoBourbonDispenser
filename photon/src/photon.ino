@@ -38,6 +38,9 @@ CRGB leds[NUM_LEDS];
 #define weightLowThreshold 2.0
 #define autoDispenseDelay 2000
 
+SYSTEM_THREAD(ENABLED);
+SYSTEM_MODE(SEMI_AUTOMATIC);
+
 HX711ADC *scale = NULL;
 int calibration_factor = 14000;
 
@@ -49,7 +52,7 @@ static int dispenseMode = 0;
 
 void setup() {
   // Sanity delay.
-  delay(2000);
+  handleWiFiConnection();
 
   // Put initialization like pinMode and begin function here.
   Serial.begin(9600);
@@ -80,6 +83,19 @@ void loop() {
 
     default:
       break;
+  }
+}
+
+void handleWiFiConnection() {
+  WiFi.connect(WIFI_CONNECT_SKIP_LISTEN);
+  waitFor(WiFi.ready, 5000);
+  if (!(WiFi.ready())) {
+    WiFi.off();
+  }
+  Particle.connect();
+  waitFor(Particle.connected, 5000);
+  if (!(Particle.connected())) {
+    Particle.disconnect();
   }
 }
 
@@ -141,7 +157,7 @@ void handleWeightSensing() {
     if (!hasDispensedLiquid && weightInLbs > weightHighThreshold) {
       hasDispensedLiquid = true;
       Serial.println("Weight placed.");
-      //delay(autoDispenseDelay);
+      delay(autoDispenseDelay);
       dispenseLiquid();
     } else if (hasDispensedLiquid && weightInLbs <= weightLowThreshold) {
       hasDispensedLiquid = false;

@@ -1,12 +1,14 @@
 /*
- * Project photon
- * Description:
- * Author:
- * Date:
- */
+* Project photon
+* Description:
+* Author:
+* Date:
+*/
 
 #include "HX711ADC/HX711ADC.h"
 #include "FastLED/FastLED.h"
+#include "RBD_Timer/RBD_Timer.h"
+#include "RBD_Button/RBD_Button.h"
 
 FASTLED_USING_NAMESPACE;
 
@@ -20,26 +22,65 @@ FASTLED_USING_NAMESPACE;
 
 CRGB leds[NUM_LEDS];
 
- // Pins
- #define pumpControl D1
- #define HX711_DOUT D7 
- #define HX711_CLK D6 
- #define dispenseBtn A2
- #define manualDispenseSwitch D3
- #define autoDispenseSwitch D2
+// Pins
+#define pumpControlPin D1
+#define HX711_DOUT_PIN D7
+#define HX711_CLK_PIN D6
+#define dispenseBtnPin A2
+#define manualDispenseSwitchPin D3
+#define autoDispenseSwitchPin D2
 
- // Output device parameters
- #define dispenseTimeForOneShot 800
+// Output device parameters
+#define dispenseTimeForOneShot 800
 
 HX711ADC *scale = NULL;
+int calibration_factor = 14000;
 
-int calibration_factor = 14000; //-7050 worked for my 440lb max scale setup
+RBD::Button dispensePushButton(dispenseBtnPin);
+RBD::Button manualDispenseSwitch(manualDispenseSwitchPin);
+RBD::Button autoDispenseSwitch(autoDispenseSwitchPin);
+
+static int dispenseMode = 0;
 
 void setup() {
   // Put initialization like pinMode and begin function here.
-  pinMode(pumpControl, OUTPUT);
+  Serial.begin(9600);
+  pinMode(pumpControlPin, OUTPUT);
 
+  // Sanity delay.
   delay(1000);
+}
+
+void loop() {
+  handleDispenseButton();
+  handleDoubleThrowToggle();
+
+  delay(5);
+}
+
+void handleDoubleThrowToggle() {
+  if (manualDispenseSwitch.onPressed()) {
+    dispenseMode = 1;
+    Serial.println("Manual Dispense Mode: Enabled");
+  } else if (manualDispenseSwitch.onReleased()) {
+    dispenseMode = 0;
+    Serial.println("Manual Dispense Mode: Disabled");
+  }
+
+  if (autoDispenseSwitch.onPressed()) {
+    dispenseMode = 2;
+    Serial.println("Automatic Dispense Mode: Enabled");
+  } else if (autoDispenseSwitch.onReleased()) {
+    dispenseMode = 0;
+    Serial.println("Automatic Dispense Mode: Disabled");
+  }
+}
+
+void handleDispenseButton() {
+    if (dispenseMode == 1 && dispensePushButton.onPressed()) {
+      Serial.println("Dispensing liquid.");
+      dispenseLiquid();
+    }
 }
 
 //void setup() {
@@ -55,7 +96,7 @@ void setup() {
 //  Serial.println("Press + or a to increase calibration factor");
 //  Serial.println("Press - or z to decrease calibration factor");
 //
-//  scale = new HX711ADC(HX711_DOUT, HX711_CLK);
+//  scale = new HX711ADC(HX711_DOUT_PIN, HX711_CLK_PIN);
 //  scale->set_scale(calibration_factor);
 //
 //  scale->tare();	//Reset the scale to 0
@@ -110,9 +151,9 @@ void dispenseLiquid() {
   //  Calculations: 194 / 255 = 76%
   //                .76 * 3.3 = 2.5
   //  50% duty cycle is achieved with a 2.5v mosfet signal output.
-  analogWrite(pumpControl, 194);
+  analogWrite(pumpControlPin, 194);
   delay(800);
-  analogWrite(pumpControl, 0);
+  analogWrite(pumpControlPin, 0);
 }
 
 // Fire2012 by Mark Kriegsman, July 2012
@@ -156,42 +197,42 @@ void dispenseLiquid() {
 
 void Fire2012()
 {
-// Array of temperature readings at each simulation cell
+  // Array of temperature readings at each simulation cell
   static byte heat[NUM_LEDS];
 
   // Step 1.  Cool down every cell a little
-    for( int i = 0; i < NUM_LEDS; i++) {
-      heat[i] = qsub8( heat[i],  random8(0, ((COOLING * 10) / NUM_LEDS) + 2));
+  for( int i = 0; i < NUM_LEDS; i++) {
+    heat[i] = qsub8( heat[i],  random8(0, ((COOLING * 10) / NUM_LEDS) + 2));
+  }
+
+  // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+
+  // Left side -- Bull's Eye Hole
+
+  for( int k= (NUM_LEDS / 2) - 1; k < NUM_LEDS; k++) {
+    heat[k] = (heat[k + 1] + heat[k + 2] + heat[k + 2] ) / 3;
+  }
+
+  // Right side -- Bull's Eye Hole
+  for( int k= (NUM_LEDS / 2) - 1; k >= 0; k--) {
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+  }
+
+  //Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+  if( random8() < SPARKING ) {
+    int l = random8(NUM_LEDS - 9, NUM_LEDS);
+    heat[l] = qadd8( heat[l], random8(160,255) );
+
+    int r = random8(9);
+    heat[r] = qadd8( heat[r], random8(160,255) );
+  }
+
+  // Step 4.  Map from heat cells to LED colors
+  for( int j = 0; j < NUM_LEDS; j++) {
+    if (j < NUM_LEDS - 9) {
+      leds[j + 9] = HeatColor( heat[j]);
+    } else {
+      leds[j % (NUM_LEDS - 9)] = HeatColor( heat[j]);
     }
-
-    // Step 2.  Heat from each cell drifts 'up' and diffuses a little
-
-    // Left side -- Bull's Eye Hole
-
-    for( int k= (NUM_LEDS / 2) - 1; k < NUM_LEDS; k++) {
-        heat[k] = (heat[k + 1] + heat[k + 2] + heat[k + 2] ) / 3;
-    }
-
-    // Right side -- Bull's Eye Hole
-    for( int k= (NUM_LEDS / 2) - 1; k >= 0; k--) {
-      heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
-    }
-
-     //Step 3.  Randomly ignite new 'sparks' of heat near the bottom
-    if( random8() < SPARKING ) {
-      int l = random8(NUM_LEDS - 9, NUM_LEDS);
-      heat[l] = qadd8( heat[l], random8(160,255) );
-
-      int r = random8(9);
-      heat[r] = qadd8( heat[r], random8(160,255) );
-    }
-
-    // Step 4.  Map from heat cells to LED colors
-    for( int j = 0; j < NUM_LEDS; j++) {
-        if (j < NUM_LEDS - 9) {
-          leds[j + 9] = HeatColor( heat[j]);
-        } else {
-          leds[j % (NUM_LEDS - 9)] = HeatColor( heat[j]);
-        }
-    }
+  }
 }

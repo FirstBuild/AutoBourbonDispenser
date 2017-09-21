@@ -32,6 +32,11 @@ CRGB leds[NUM_LEDS];
 
 // Output device parameters
 #define dispenseTimeForOneShot 800
+#define weightSamplingRate 20
+#define dispenseDebounceTimeout 15
+#define weightHighThreshold 7.0
+#define weightLowThreshold 2.0
+#define autoDispenseDelay 2000
 
 HX711ADC *scale = NULL;
 int calibration_factor = 14000;
@@ -53,12 +58,29 @@ void setup() {
   FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( CRGB::Seashell );
   FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setTemperature( CRGB::Seashell );
   FastLED.setBrightness( BRIGHTNESS );
+
+  setupWeightSensing();
 }
 
 void loop() {
-  handleDispenseButton();
   handleDoubleThrowToggle();
   handleBullsEyeWindowLights();
+
+  switch (dispenseMode) {
+    case 0:
+      break;
+
+    case 1:
+      handleDispenseButton();
+      break;
+
+    case 2:
+      handleWeightSensing();
+      break;
+
+    default:
+      break;
+  }
 }
 
 void handleBullsEyeWindowLights() {
@@ -77,6 +99,7 @@ void handleDoubleThrowToggle() {
   }
 
   if (autoDispenseSwitch.onPressed()) {
+    tareScale();
     dispenseMode = 2;
     Serial.println("Automatic Dispense Mode: Enabled");
   } else if (autoDispenseSwitch.onReleased()) {
@@ -86,53 +109,47 @@ void handleDoubleThrowToggle() {
 }
 
 void handleDispenseButton() {
-    if (dispenseMode == 1 && dispensePushButton.onPressed()) {
+    if (dispensePushButton.onPressed()) {
       Serial.println("Dispensing liquid.");
       dispenseLiquid();
     }
 }
 
-//void setup() {
-//  Serial.begin(9600);
-//  Serial.println("HX711 calibration sketch");
-//  Serial.println("Remove all weight from scale");
-//  Serial.println("After readings begin, place known weight on scale");
-//  Serial.println("Press + or a to increase calibration factor");
-//  Serial.println("Press - or z to decrease calibration factor");
-//
-//  scale = new HX711ADC(HX711_DOUT_PIN, HX711_CLK_PIN);
-//  scale->set_scale(calibration_factor);
-//
-//  scale->tare();	//Reset the scale to 0
-//
-//  long zero_factor = scale->read_average(); //Get a baseline reading
-//  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
-//  Serial.println(zero_factor);
-//}
+void setupWeightSensing() {
+  scale = new HX711ADC(HX711_DOUT_PIN, HX711_CLK_PIN);
+  scale->set_scale(calibration_factor);
+  tareScale();
+}
 
-//void loop() {
-//
-//  //scale->set_scale(calibration_factor); //Adjust to this calibration factor
-//
-//  Serial.print("Reading: ");
-//  Serial.print(scale->get_units(), 1);
-//  Serial.print(" lbs"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
-//  Serial.print(" calibration_factor: ");
-//  Serial.print(calibration_factor);
-//  Serial.println();
-//
-//  if(Serial.available())
-//  {
-//    char temp = Serial.read();
-//    if(temp == '+' || temp == 'a')
-//      calibration_factor += 10;
-//    else if(temp == '-' || temp == 'z')
-//      calibration_factor -= 10;
-//  }
-//
-//  delay(200);
-//
-//}
+void tareScale() {
+  scale->tare();	//Reset the scale to 0
+}
+
+void handleWeightSensing() {
+  static float weightInLbs = 0;
+  static bool hasDispensedLiquid = false;
+
+  static unsigned long rateTracker = millis();
+  if ((millis() - rateTracker) > weightSamplingRate) {
+    weightInLbs = scale->get_units();
+    Serial.println(scale->get_units(), 1);
+    rateTracker = millis();
+  }
+
+  static unsigned long dispenseTimeTracker = millis();
+  if ((millis() - dispenseTimeTracker) > dispenseDebounceTimeout) {
+    if (!hasDispensedLiquid && weightInLbs > weightHighThreshold) {
+      hasDispensedLiquid = true;
+      Serial.println("Weight placed.");
+      //delay(autoDispenseDelay);
+      dispenseLiquid();
+    } else if (hasDispensedLiquid && weightInLbs <= weightLowThreshold) {
+      hasDispensedLiquid = false;
+      Serial.println("Weight removed.");
+    }
+    dispenseTimeTracker = millis();
+  }
+}
 
 void allWhite() {
   for (int i = 0; i < NUM_LEDS; i++) {
